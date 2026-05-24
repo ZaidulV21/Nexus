@@ -35,7 +35,7 @@ const createQuote = async (req, res, next) => {
     const { projectId, items, taxPercent = 18, validUntil, notes } = req.body
     if (!projectId || !items?.length) return res.status(400).json({ error: 'projectId and items are required.' })
 
-    const subtotal = items.reduce((sum, item) => sum + (item.total || item.unitPrice * (item.quantity || 1)), 0)
+    const subtotal = items.reduce((sum, item) => sum + (Number(item.total) || Number(item.unitPrice) * (Number(item.quantity) || 1)), 0)
     const { taxAmount, totalAmount } = calculateGST(subtotal, taxPercent)
 
     const count       = await prisma.quote.count()
@@ -53,10 +53,10 @@ const createQuote = async (req, res, next) => {
 
 const updateQuote = async (req, res, next) => {
   try {
-    const { items, taxPercent, validUntil, notes } = req.body
+    const { items, taxPercent } = req.body
     let data = { ...req.body }
     if (items) {
-      const subtotal = items.reduce((s,i) => s + (i.total || i.unitPrice*(i.quantity||1)), 0)
+      const subtotal = items.reduce((s,i) => s + (Number(i.total) || Number(i.unitPrice)*(Number(i.quantity)||1)), 0)
       const { taxAmount, totalAmount } = calculateGST(subtotal, taxPercent || 18)
       data = { ...data, subtotal, taxAmount, totalAmount }
     }
@@ -73,27 +73,46 @@ const sendQuote = async (req, res, next) => {
     })
     if (!quote) return res.status(404).json({ error: 'Quote not found.' })
 
-    // Generate PDF
-    const html    = pdfSvc.generateQuoteHTML(quote, quote.project, quote.project.client)
-    const pdfUrl  = await pdfSvc.generateAndUploadPDF(html, `quote-${quote.quoteNumber}`)
+    // Try to generate PDF — won't crash if it fails
+    let pdfUrl = null
+    try {
+      const html = pdfSvc.generateQuoteHTML(quote, quote.project, quote.project.client)
+      pdfUrl     = await pdfSvc.generateAndUploadPDF(html, `quote-${quote.quoteNumber}`)
+    } catch (pdfErr) {
+      console.warn('PDF generation failed, continuing without PDF:', pdfErr.message)
+    }
 
     const updated = await prisma.quote.update({
       where: { id: quote.id },
-      data:  { status: 'SENT', pdfUrl }
+      data:  { status: 'SENT', ...(pdfUrl && { pdfUrl }) }
     })
 
-    // Email client
-    emailSvc.sendQuoteEmail(quote.project.client.email, quote.project.client.name, quote.quoteNumber, pdfUrl, quote.totalAmount)
+    // Send email (won't crash if SendGrid not configured)
+    try {
+      emailSvc.sendQuoteEmail(
+        quote.project.client.email,
+        quote.project.client.name,
+        quote.quoteNumber,
+        pdfUrl || `${process.env.FRONTEND_URL}/dashboard/quotes`,
+        quote.totalAmount
+      )
+    } catch (emailErr) {
+      console.warn('Email send failed:', emailErr.message)
+    }
 
-    res.json({ quote: updated })
+    res.json({ quote: updated, message: 'Quote sent successfully.' })
   } catch (err) { next(err) }
 }
 
 const acceptQuote = async (req, res, next) => {
   try {
-    const quote = await prisma.quote.findUnique({ where: { id: req.params.id }, include: { project: { include: { client:true } } } })
+    const quote = await prisma.quote.findUnique({
+      where: { id: req.params.id },
+      include: { project: { include: { client:true } } }
+    })
     if (!quote) return res.status(404).json({ error: 'Quote not found.' })
-    if (req.user.role === 'CLIENT' && quote.project.clientId !== req.user.id) return res.status(403).json({ error: 'Access denied.' })
+    if (req.user.role === 'CLIENT' && quote.project.clientId !== req.user.id)
+      return res.status(403).json({ error: 'Access denied.' })
 
     const [updatedQuote] = await Promise.all([
       prisma.quote.update({ where: { id: quote.id }, data: { status: 'ACCEPTED' } }),

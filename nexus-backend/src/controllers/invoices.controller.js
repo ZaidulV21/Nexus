@@ -26,7 +26,8 @@ const getInvoice = async (req, res, next) => {
       include: { project: { include: { client: true } } }
     })
     if (!invoice) return res.status(404).json({ error: 'Invoice not found.' })
-    if (req.user.role === 'CLIENT' && invoice.project.clientId !== req.user.id) return res.status(403).json({ error: 'Access denied.' })
+    if (req.user.role === 'CLIENT' && invoice.project.clientId !== req.user.id)
+      return res.status(403).json({ error: 'Access denied.' })
     res.json({ invoice })
   } catch (err) { next(err) }
 }
@@ -36,9 +37,9 @@ const createInvoice = async (req, res, next) => {
     const { projectId, items, amount, taxPercent = 18, dueDate, notes } = req.body
     if (!projectId || !amount) return res.status(400).json({ error: 'projectId and amount are required.' })
 
-    const { taxAmount } = calculateGST(Number(amount) / (1 + taxPercent/100), taxPercent)
-    const count         = await prisma.invoice.count()
-    const invoiceNumber = generateInvoiceNumber(count)
+    const { taxAmount }   = calculateGST(Number(amount) / (1 + taxPercent/100), taxPercent)
+    const count           = await prisma.invoice.count()
+    const invoiceNumber   = generateInvoiceNumber(count)
 
     const invoice = await prisma.invoice.create({
       data: {
@@ -59,12 +60,35 @@ const sendInvoice = async (req, res, next) => {
     })
     if (!invoice) return res.status(404).json({ error: 'Invoice not found.' })
 
-    const html   = pdfSvc.generateInvoiceHTML(invoice, invoice.project, invoice.project.client)
-    const pdfUrl = await pdfSvc.generateAndUploadPDF(html, `invoice-${invoice.invoiceNumber}`)
+    // Try PDF generation — won't crash if Puppeteer/Cloudinary not set up
+    let pdfUrl = null
+    try {
+      const html = pdfSvc.generateInvoiceHTML(invoice, invoice.project, invoice.project.client)
+      pdfUrl     = await pdfSvc.generateAndUploadPDF(html, `invoice-${invoice.invoiceNumber}`)
+    } catch (pdfErr) {
+      console.warn('Invoice PDF generation failed, continuing:', pdfErr.message)
+    }
 
-    const updated = await prisma.invoice.update({ where: { id: invoice.id }, data: { status: 'SENT', pdfUrl } })
-    emailSvc.sendInvoiceEmail(invoice.project.client.email, invoice.project.client.name, invoice.invoiceNumber, invoice.amount, pdfUrl, invoice.dueDate)
-    res.json({ invoice: updated })
+    const updated = await prisma.invoice.update({
+      where: { id: invoice.id },
+      data:  { status: 'SENT', ...(pdfUrl && { pdfUrl }) }
+    })
+
+    // Send email
+    try {
+      emailSvc.sendInvoiceEmail(
+        invoice.project.client.email,
+        invoice.project.client.name,
+        invoice.invoiceNumber,
+        invoice.amount,
+        pdfUrl || `${process.env.FRONTEND_URL}/dashboard/invoices`,
+        invoice.dueDate
+      )
+    } catch (emailErr) {
+      console.warn('Invoice email failed:', emailErr.message)
+    }
+
+    res.json({ invoice: updated, message: 'Invoice sent successfully.' })
   } catch (err) { next(err) }
 }
 

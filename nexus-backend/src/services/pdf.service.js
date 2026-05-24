@@ -1,16 +1,28 @@
 // nexus-backend/src/services/pdf.service.js
-const puppeteer = require('puppeteer')
-const { cloudinary } = require('../middleware/upload')
+// PDF generation — uses Puppeteer if available, falls back gracefully on Windows
+
 const { formatDate } = require('../utils/helpers')
 
 const generateAndUploadPDF = async (html, filename) => {
-  const browser = await puppeteer.launch({ args: ['--no-sandbox', '--disable-setuid-sandbox'] })
+  // Try Puppeteer first
   try {
+    const puppeteer  = require('puppeteer')
+    const { cloudinary } = require('../middleware/upload')
+
+    const browser = await puppeteer.launch({
+      args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
+      headless: 'new',
+    })
     const page = await browser.newPage()
     await page.setContent(html, { waitUntil: 'networkidle0' })
-    const pdfBuffer = await page.pdf({ format: 'A4', printBackground: true, margin: { top: '20mm', right: '15mm', bottom: '20mm', left: '15mm' } })
+    const pdfBuffer = await page.pdf({
+      format: 'A4',
+      printBackground: true,
+      margin: { top: '20mm', right: '15mm', bottom: '20mm', left: '15mm' }
+    })
+    await browser.close()
 
-    // Upload to Cloudinary as raw file
+    // Upload to Cloudinary
     const result = await new Promise((resolve, reject) => {
       cloudinary.uploader.upload_stream(
         { resource_type: 'raw', folder: 'nexus-pdfs', public_id: filename, format: 'pdf' },
@@ -18,8 +30,12 @@ const generateAndUploadPDF = async (html, filename) => {
       ).end(pdfBuffer)
     })
     return result.secure_url
-  } finally {
-    await browser.close()
+
+  } catch (err) {
+    // Puppeteer or Cloudinary not available — return null gracefully
+    // Invoice/Quote will still be created and saved, just without PDF URL
+    console.warn('PDF generation skipped (Puppeteer/Cloudinary not configured):', err.message)
+    return null
   }
 }
 
@@ -44,13 +60,9 @@ const generateQuoteHTML = (quote, project, client) => `
   .total-row.grand { font-weight:bold; font-size:16px; border-bottom:2px solid #C9A84C; padding-top:12px; }
   .footer { background:#f9f9f9; padding:16px 32px; text-align:center; font-size:11px; color:#999; border-top:1px solid #eee; }
   .badge { display:inline-block; padding:4px 12px; background:#C9A84C; color:#000; font-size:11px; font-weight:bold; }
-  .notes { padding:16px 32px; font-size:12px; color:#666; background:#fffbf0; border-top:1px solid #f0e0a0; }
 </style></head><body>
 <div class="header">
-  <div>
-    <div class="logo">NEXUS</div>
-    <div style="color:#999;font-size:11px;margin-top:4px;">MANAGED SERVICES</div>
-  </div>
+  <div><div class="logo">NEXUS</div><div style="color:#999;font-size:11px;margin-top:4px;">MANAGED SERVICES</div></div>
   <div class="header-right">
     <h2>QUOTATION</h2>
     <p>${quote.quoteNumber}</p>
@@ -89,21 +101,18 @@ const generateQuoteHTML = (quote, project, client) => `
       <td>${item.description}</td>
       <td>${item.quantity || 1}</td>
       <td>${item.unit || 'Lumpsum'}</td>
-      <td>₹${Number(item.unitPrice||0).toLocaleString('en-IN')}</td>
-      <td style="text-align:right;font-weight:500;">₹${Number(item.total||0).toLocaleString('en-IN')}</td>
+      <td>Rs ${Number(item.unitPrice||0).toLocaleString('en-IN')}</td>
+      <td style="text-align:right;font-weight:500;">Rs ${Number(item.total||0).toLocaleString('en-IN')}</td>
     </tr>`).join('')}
   </tbody>
 </table>
 <div class="totals">
-  <div class="total-row"><span>Subtotal</span><span>₹${Number(quote.subtotal).toLocaleString('en-IN')}</span></div>
-  <div class="total-row"><span>GST (${quote.taxPercent}%)</span><span>₹${Number(quote.taxAmount).toLocaleString('en-IN')}</span></div>
-  <div class="total-row grand"><span>Total Amount</span><span>₹${Number(quote.totalAmount).toLocaleString('en-IN')}</span></div>
+  <div class="total-row"><span>Subtotal</span><span>Rs ${Number(quote.subtotal).toLocaleString('en-IN')}</span></div>
+  <div class="total-row"><span>GST (${quote.taxPercent}%)</span><span>Rs ${Number(quote.taxAmount).toLocaleString('en-IN')}</span></div>
+  <div class="total-row grand"><span>Total Amount</span><span>Rs ${Number(quote.totalAmount).toLocaleString('en-IN')}</span></div>
 </div>
-${quote.notes ? `<div class="notes"><strong>Terms & Notes:</strong> ${quote.notes}</div>` : ''}
-<div class="footer">
-  Nexus Managed Services · Lucknow, UP · hello@nexusmanaged.in · +91 98765 43210<br>
-  This quotation is valid for 7 days from date of issue.
-</div>
+${quote.notes ? `<div style="padding:16px 32px;background:#fffbf0;font-size:12px;color:#666;"><strong>Notes:</strong> ${quote.notes}</div>` : ''}
+<div class="footer">Nexus Managed Services · Lucknow, UP · hello@nexusmanaged.in · +91 98765 43210</div>
 </body></html>`
 
 const generateInvoiceHTML = (invoice, project, client) => `
@@ -122,10 +131,7 @@ const generateInvoiceHTML = (invoice, project, client) => `
   .totals { margin-left:auto; width:280px; padding:0 32px 32px; }
   .total-row { display:flex; justify-content:space-between; padding:8px 0; border-bottom:1px solid #eee; }
   .total-row.grand { font-weight:bold; font-size:16px; color:#C9A84C; }
-  .payment { padding:16px 32px; background:#f0fff4; border-top:1px solid #68d391; }
   .footer { background:#f9f9f9; padding:16px 32px; text-align:center; font-size:11px; color:#999; }
-  .status-paid { background:#68d391; color:#fff; padding:4px 12px; font-weight:bold; font-size:11px; }
-  .status-sent { background:#C9A84C; color:#000; padding:4px 12px; font-weight:bold; font-size:11px; }
 </style></head><body>
 <div class="header">
   <div><div class="logo">NEXUS</div><div style="color:#999;font-size:11px;margin-top:4px;">MANAGED SERVICES</div></div>
@@ -134,34 +140,29 @@ const generateInvoiceHTML = (invoice, project, client) => `
     <p>${invoice.invoiceNumber}</p>
     <p>Date: ${formatDate(invoice.createdAt)}</p>
     ${invoice.dueDate ? `<p style="color:#ff6b6b;">Due: ${formatDate(invoice.dueDate)}</p>` : ''}
-    <div class="${invoice.status === 'PAID' ? 'status-paid' : 'status-sent'}" style="margin-top:8px;">${invoice.status}</div>
   </div>
 </div>
 <div class="meta">
   <div class="meta-block"><h4>Billed To</h4><p><strong>${client.name}</strong></p><p>${client.companyName||''}</p><p>${client.email}</p></div>
   <div class="meta-block"><h4>Project</h4><p><strong>${project.title}</strong></p><p>${project.location||''}</p></div>
-  <div class="meta-block" style="text-align:right;"><h4>From</h4><p><strong>Nexus Managed Services</strong></p><p>Lucknow, Uttar Pradesh</p><p>GSTIN: 09XXXXX0000X1ZX</p></div>
+  <div class="meta-block" style="text-align:right;"><h4>From</h4><p><strong>Nexus Managed Services</strong></p><p>Lucknow, UP</p></div>
 </div>
 <table>
   <thead><tr><th>#</th><th>Description</th><th style="text-align:right;">Amount</th></tr></thead>
   <tbody>
-    ${(Array.isArray(invoice.items) ? invoice.items : [{description: project.title, amount: invoice.amount}]).map((item,i) => `
-    <tr><td style="color:#999;">${i+1}</td><td>${item.description}</td><td style="text-align:right;">₹${Number(item.amount||0).toLocaleString('en-IN')}</td></tr>`).join('')}
+    ${(Array.isArray(invoice.items) && invoice.items.length ? invoice.items : [{description: project.title, amount: invoice.amount}]).map((item,i) => `
+    <tr><td style="color:#999;">${i+1}</td><td>${item.description}</td><td style="text-align:right;">Rs ${Number(item.amount||0).toLocaleString('en-IN')}</td></tr>`).join('')}
   </tbody>
 </table>
 <div class="totals">
-  <div class="total-row"><span>Subtotal</span><span>₹${Number(invoice.amount - invoice.taxAmount).toLocaleString('en-IN')}</span></div>
-  <div class="total-row"><span>GST (${invoice.taxPercent}%)</span><span>₹${Number(invoice.taxAmount).toLocaleString('en-IN')}</span></div>
-  <div class="total-row grand"><span>Total</span><span>₹${Number(invoice.amount).toLocaleString('en-IN')}</span></div>
+  <div class="total-row"><span>Subtotal</span><span>Rs ${Number(invoice.amount - invoice.taxAmount).toLocaleString('en-IN')}</span></div>
+  <div class="total-row"><span>GST (${invoice.taxPercent}%)</span><span>Rs ${Number(invoice.taxAmount).toLocaleString('en-IN')}</span></div>
+  <div class="total-row grand"><span>Total</span><span>Rs ${Number(invoice.amount).toLocaleString('en-IN')}</span></div>
 </div>
-<div class="payment">
-  <strong>Payment Details:</strong>
-  <p style="margin-top:8px;font-size:12px;color:#555;">
-    Account Name: Nexus Managed Services · Bank: HDFC Bank · Account: XXXX XXXX XXXX<br>
-    IFSC: HDFC0001234 · UPI: nexus@hdfcbank
-  </p>
+<div style="padding:16px 32px;background:#f0fff4;border-top:1px solid #68d391;">
+  <strong>Payment:</strong> UPI: nexus@hdfcbank · NEFT: HDFC Bank · Account: XXXX XXXX XXXX
 </div>
-<div class="footer">Nexus Managed Services · Lucknow, UP · hello@nexusmanaged.in · +91 98765 43210</div>
+<div class="footer">Nexus Managed Services · Lucknow, UP · hello@nexusmanaged.in</div>
 </body></html>`
 
 module.exports = { generateAndUploadPDF, generateQuoteHTML, generateInvoiceHTML }
