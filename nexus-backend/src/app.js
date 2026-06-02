@@ -10,6 +10,7 @@ const rateLimit = require("express-rate-limit");
 const sgMail = require("@sendgrid/mail");
 
 const app = express();
+app.set("trust proxy", 1);   // ✅ Add this line
 
 // ==============================
 // SENDGRID CONFIG
