@@ -41,7 +41,7 @@ export default function ClientProjects() {
               </div>
               <ProgressBar percent={progressPercent(p.milestones||[])} />
               <div className="flex justify-between mt-4 pt-4 border-t border-gray-100">
-                <span className="text-xs text-gray-500">PM: {p.manager?.name || 'Not assigned'}</span>
+                <span className="text-xs text-gray-500">{p.status}</span>
                 <span className="text-xs text-gold-600 font-medium">View Details →</span>
               </div>
             </Link>

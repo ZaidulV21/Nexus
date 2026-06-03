@@ -103,19 +103,6 @@ export default function ClientProjectDetail() {
               ))}
             </dl>
           </div>
-          <div className="card">
-            <h3 className="text-sm font-medium text-gray-900 mb-4">Your Project Manager</h3>
-            {project.manager ? (
-              <div className="flex items-center gap-3">
-                <Avatar name={project.manager.name} size="lg" url={project.manager.avatarUrl} />
-                <div>
-                  <p className="font-medium text-gray-900">{project.manager.name}</p>
-                  <p className="text-xs text-gray-500 mt-0.5">{project.manager.email}</p>
-                  {project.manager.phone && <a href={`tel:${project.manager.phone}`} className="text-xs text-gold-600 mt-1 block hover:underline">{project.manager.phone}</a>}
-                </div>
-              </div>
-            ) : <p className="text-sm text-gray-400">Project Manager not yet assigned.</p>}
-          </div>
         </div>
       )}
 

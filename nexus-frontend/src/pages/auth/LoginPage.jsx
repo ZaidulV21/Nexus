@@ -17,7 +17,7 @@ export default function LoginPage() {
     try {
       const user = await login(email, password)
       toast.success(`Welcome back, ${user.name}!`)
-      if (['SUPER_ADMIN','ADMIN','PROJECT_MANAGER'].includes(user.role)) {
+      if (['SUPER_ADMIN','ADMIN'].includes(user.role)) {
         navigate('/admin')
       } else {
         navigate('/dashboard')

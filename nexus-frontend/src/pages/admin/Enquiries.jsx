@@ -6,15 +6,15 @@ import { formatDate, formatDateTime } from '../../utils/helpers'
 import api from '../../api/axios'
 import toast from 'react-hot-toast'
 
-const STATUSES = ['', 'NEW', 'CONTACTED', 'CONVERTED', 'CLOSED']
+const STATUSES = ['', 'NEW', 'CONTACTED', 'SITE_VISITED', 'QUOTE_SENT', 'CONFIRMED', 'ADVANCE_PAID', 'IN_PROGRESS', 'QUALITY_CHECK', 'FINAL_INVOICE', 'COMPLETED', 'CLOSED']
 
 export default function AdminEnquiries() {
   const [enquiries, setEnquiries] = useState([])
   const [loading,   setLoading]   = useState(true)
   const [filter,    setFilter]    = useState('')
   const [convert,   setConvert]   = useState(null)   // enquiry to convert
-  const [form,      setForm]      = useState({ title:'', location:'', managerId:'' })
-  const [managers,  setManagers]  = useState([])
+  const [details,   setDetails]   = useState(null)   // enquiry details view
+  const [form,      setForm]      = useState({ title:'', location:'' })
 
   const load = () => {
     const params = filter ? `?status=${filter}` : ''
@@ -25,12 +25,6 @@ export default function AdminEnquiries() {
   }
 
   useEffect(() => { load() }, [filter])
-
-  useEffect(() => {
-    api.get('/admin/users?role=PROJECT_MANAGER')
-      .then(r => setManagers(r.data.users))
-      .catch(() => {})
-  }, [])
 
   const updateStatus = async (id, status) => {
     try {
@@ -46,11 +40,10 @@ export default function AdminEnquiries() {
       await api.post(`/enquiries/${convert.id}/convert`, {
         title:     form.title || `${convert.name} — Project`,
         location:  form.location,
-        managerId: form.managerId || undefined,
       })
       toast.success('Enquiry converted to project. Client credentials sent by email.')
       setConvert(null)
-      setForm({ title:'', location:'', managerId:'' })
+      setForm({ title:'', location:'' })
       load()
     } catch (err) { toast.error(err.response?.data?.error || 'Conversion failed.') }
   }
@@ -116,9 +109,14 @@ export default function AdminEnquiries() {
                     <td className="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">{formatDate(e.createdAt)}</td>
                     <td className="px-4 py-3">
                       <div className="flex gap-2">
-                        {e.status !== 'CONVERTED' && (
+                        <button
+                          onClick={() => setDetails(e)}
+                          className="text-xs border border-gray-200 px-2.5 py-1 text-gray-600 hover:bg-gray-50 transition-colors">
+                          View Details
+                        </button>
+                        {e.status !== 'CONTACTED' && (
                           <button
-                            onClick={() => { setConvert(e); setForm({ title:`${e.name} — Project`, location:'', managerId:'' }) }}
+                            onClick={() => { setConvert(e); setForm({ title:`${e.name} — Project`, location:'' }) }}
                             className="text-xs bg-gold-500 text-black px-2.5 py-1 hover:bg-gold-600 transition-colors whitespace-nowrap">
                             Convert →
                           </button>
@@ -158,18 +156,119 @@ export default function AdminEnquiries() {
               onChange={e => setForm(f => ({...f, location: e.target.value}))}
               placeholder="e.g. Gomti Nagar, Lucknow" />
           </div>
-          <div>
-            <label className="label">Assign Project Manager</label>
-            <select className="input" value={form.managerId}
-              onChange={e => setForm(f => ({...f, managerId: e.target.value}))}>
-              <option value="">Assign later</option>
-              {managers.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
-            </select>
-          </div>
         </div>
         <div className="flex gap-3 justify-end mt-6">
           <button onClick={() => setConvert(null)} className="btn-outline">Cancel</button>
           <button onClick={handleConvert} className="btn-primary">Convert to Project</button>
+        </div>
+      </Modal>
+      
+      {/* View Details modal */}
+      <Modal open={!!details} onClose={() => setDetails(null)} title={`Enquiry: ${details?.name}`} size="lg">
+        {details && (
+          <div className="space-y-6">
+            {/* Contact Information */}
+            <div>
+              <h3 className="font-medium text-gray-900 mb-3">Contact Information</h3>
+              <div className="grid grid-cols-2 gap-4 text-sm">
+                <div>
+                  <p className="text-gray-500 text-xs mb-1">Name</p>
+                  <p className="font-medium text-gray-900">{details.name}</p>
+                </div>
+                <div>
+                  <p className="text-gray-500 text-xs mb-1">Phone</p>
+                  <p className="font-medium text-gray-900">{details.phone}</p>
+                </div>
+                <div>
+                  <p className="text-gray-500 text-xs mb-1">Email</p>
+                  <p className="font-medium text-gray-900">{details.email}</p>
+                </div>
+                <div>
+                  <p className="text-gray-500 text-xs mb-1">Company</p>
+                  <p className="font-medium text-gray-900">{details.company || '—'}</p>
+                </div>
+                <div>
+                  <p className="text-gray-500 text-xs mb-1">City</p>
+                  <p className="font-medium text-gray-900">{details.city || '—'}</p>
+                </div>
+                <div>
+                  <p className="text-gray-500 text-xs mb-1">Callback Time</p>
+                  <p className="font-medium text-gray-900">{details.callbackTime || '—'}</p>
+                </div>
+                <div className="col-span-2">
+                  <p className="text-gray-500 text-xs mb-1">How they heard about us</p>
+                  <p className="font-medium text-gray-900">{details.hearAboutUs || '—'}</p>
+                </div>
+              </div>
+            </div>
+            
+            {/* Services Requested */}
+            <div>
+              <h3 className="font-medium text-gray-900 mb-3">Services Requested</h3>
+              <div className="flex flex-wrap gap-2">
+                {details.servicesRequested?.map(service => (
+                  <span key={service} className="inline-block bg-gold-100 text-gold-700 px-3 py-1 rounded text-sm">
+                    {service}
+                  </span>
+                ))}
+              </div>
+            </div>
+            
+            {/* Service Details */}
+            {details.serviceDetails && Object.keys(details.serviceDetails).length > 0 && (
+              <div>
+                <h3 className="font-medium text-gray-900 mb-3">Service-Specific Details</h3>
+                <div className="space-y-4">
+                  {Object.entries(details.serviceDetails).map(([serviceName, serviceData]) => (
+                    <div key={serviceName} className="border border-gray-200 rounded-lg p-4 bg-gray-50">
+                      <h4 className="font-medium text-gray-900 mb-3">{serviceName}</h4>
+                      {Object.keys(serviceData).length > 0 ? (
+                        <div className="grid grid-cols-2 gap-3 text-sm">
+                          {Object.entries(serviceData).map(([key, value]) => (
+                            <div key={key}>
+                              <p className="text-gray-500 text-xs mb-1 capitalize">
+                                {key.replace(/([A-Z])/g, ' $1').trim()}
+                              </p>
+                              <p className="font-medium text-gray-900">
+                                {Array.isArray(value) ? value.join(', ') : String(value) || '—'}
+                              </p>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="text-xs text-gray-500">No details provided for this service</p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            
+            {/* Message */}
+            {details.message && (
+              <div>
+                <h3 className="font-medium text-gray-900 mb-3">Auto-Generated Summary</h3>
+                <p className="text-sm text-gray-700 bg-gray-50 p-3 rounded">{details.message}</p>
+              </div>
+            )}
+            
+            {/* Metadata */}
+            <div className="pt-4 border-t border-gray-200">
+              <div className="grid grid-cols-2 gap-4 text-xs text-gray-500">
+                <div>
+                  <p>Status</p>
+                  <p className="font-medium text-gray-900 mt-1">{details.status}</p>
+                </div>
+                <div>
+                  <p>Submitted</p>
+                  <p className="font-medium text-gray-900 mt-1">{formatDateTime(details.createdAt)}</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+        <div className="flex gap-3 justify-end mt-6">
+          <button onClick={() => setDetails(null)} className="btn-outline">Close</button>
         </div>
       </Modal>
     </AdminLayout>

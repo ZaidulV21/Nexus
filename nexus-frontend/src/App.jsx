@@ -30,7 +30,7 @@ import AdminClients      from './pages/admin/Clients'
 import AdminServices     from './pages/admin/Services'
 import AdminReports      from './pages/admin/Reports'
 
-const ADMIN_ROLES  = ['SUPER_ADMIN', 'ADMIN', 'PROJECT_MANAGER']
+const ADMIN_ROLES  = ['SUPER_ADMIN', 'ADMIN']
 const CLIENT_ROLES = ['CLIENT']
 
 function ProtectedRoute({ children, allowedRoles }) {

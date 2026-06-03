@@ -3,13 +3,16 @@ import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import PublicNavbar from '../../components/layout/PublicNavbar'
 import Footer from './Footer'
+import QuoteWizard from '../../components/QuoteWizard'
 import api from '../../api/axios'
+import toast from 'react-hot-toast'
 
 const ICONS = { sofa:'🏠', zap:'⚡', sun:'☀️', megaphone:'📋', monitor:'💻', camera:'📷', wind:'❄️', droplets:'🚿', paintbrush:'🎨', wrench:'🔧' }
 
 export default function Home() {
   const [services,  setServices]  = useState([])
   const [selected,  setSelected]  = useState(new Set())
+  const [showWizard, setShowWizard] = useState(false)
 
   useEffect(() => {
     api.get('/services').then(r => setServices(r.data.services)).catch(() => {})
@@ -21,6 +24,20 @@ export default function Home() {
       next.has(id) ? next.delete(id) : next.add(id)
       return next
     })
+  }
+  
+  const handleProceed = () => {
+    if (selected.size === 0) {
+      toast.error('Please select at least one service first.')
+      return
+    }
+    setShowWizard(true)
+  }
+  
+  const getSelectedServiceObjects = () => {
+    return [...selected]
+      .map(id => services.find(s => s.id === id))
+      .filter(Boolean)
   }
 
   return (
@@ -110,9 +127,9 @@ export default function Home() {
                 </p>
               )}
             </div>
-            <Link to="/contact" className="bg-gold-500 text-black px-6 py-2.5 text-sm font-medium hover:bg-gold-600 transition-colors">
-              Request a Quote →
-            </Link>
+            <button onClick={handleProceed} className="bg-gold-500 text-black px-6 py-2.5 text-sm font-medium hover:bg-gold-600 transition-colors">
+              Proceed →
+            </button>
           </div>
         </div>
       </section>
@@ -184,6 +201,13 @@ export default function Home() {
       </section>
 
       <Footer />
+      
+      {showWizard && (
+        <QuoteWizard 
+          services={getSelectedServiceObjects()}
+          onClose={() => setShowWizard(false)}
+        />
+      )}
     </div>
   )
 }

@@ -9,10 +9,17 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
+    // Check if user is already logged in
     const token    = localStorage.getItem('nexus_token')
     const userData = localStorage.getItem('nexus_user')
     if (token && userData) {
-      try { setUser(JSON.parse(userData)) } catch {}
+      try { 
+        setUser(JSON.parse(userData)) 
+      } catch (err) {
+        console.error('Failed to parse stored user:', err)
+        localStorage.removeItem('nexus_token')
+        localStorage.removeItem('nexus_user')
+      }
     }
     setLoading(false)
   }, [])
@@ -47,9 +54,23 @@ export function AuthProvider({ children }) {
     localStorage.setItem('nexus_user', JSON.stringify(updatedUser))
   }
 
+  // Show minimal loading state while checking auth
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-screen bg-gray-50">
+        <div className="text-center">
+          <div className="w-12 h-12 bg-gray-900 flex items-center justify-center mx-auto mb-4">
+            <span className="text-gold-500 font-bold text-lg">N</span>
+          </div>
+          <p className="text-gray-400 text-sm">Loading...</p>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <AuthContext.Provider value={{ user, loading, login, logout, register, updateUser }}>
-      {!loading && children}
+      {children}
     </AuthContext.Provider>
   )
 }

@@ -9,7 +9,6 @@ const allowRoles = (...roles) => (req, res, next) => {
 
 const isAdmin      = allowRoles('SUPER_ADMIN', 'ADMIN')
 const isSuperAdmin = allowRoles('SUPER_ADMIN')
-const isAdminOrPM  = allowRoles('SUPER_ADMIN', 'ADMIN', 'PROJECT_MANAGER')
 const isClient     = allowRoles('CLIENT')
 
-module.exports = { allowRoles, isAdmin, isSuperAdmin, isAdminOrPM, isClient }
+module.exports = { allowRoles, isAdmin, isSuperAdmin, isClient }

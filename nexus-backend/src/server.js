@@ -18,10 +18,12 @@ const server = app.listen(PORT, () => {
 
 process.on('unhandledRejection', (err) => {
   console.error('UNHANDLED REJECTION:', err.message)
-  server.close(() => process.exit(1))
+  console.error(err.stack)
+  // Don't exit - let the server continue running
 })
 
 process.on('uncaughtException', (err) => {
   console.error('UNCAUGHT EXCEPTION:', err.message)
-  process.exit(1)
+  console.error(err.stack)
+  server.close(() => process.exit(1))
 })

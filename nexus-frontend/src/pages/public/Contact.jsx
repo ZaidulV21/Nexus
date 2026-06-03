@@ -1,17 +1,32 @@
 // src/pages/public/Contact.jsx
 import { useState, useEffect } from 'react'
+import { useLocation } from 'react-router-dom'
 import PublicNavbar from '../../components/layout/PublicNavbar'
 import Footer from './Footer'
 import api from '../../api/axios'
 import toast from 'react-hot-toast'
 
 export default function Contact() {
+  const location = useLocation()
   const [services, setServices] = useState([])
-  const [form, setForm] = useState({ name:'', phone:'', email:'', company:'', servicesRequested:[], message:'', budget:'' })
+  const [form, setForm] = useState({ name:'', phone:'', email:'', company:'', city:'', hearAboutUs:'', callbackTime:'', servicesRequested:[], message:'', budget:'' })
   const [loading, setLoading] = useState(false)
   const [submitted, setSubmitted] = useState(false)
+  const [serviceDetails, setServiceDetails] = useState({})
 
-  useEffect(() => { api.get('/services').then(r => setServices(r.data.services)).catch(() => {}) }, [])
+  useEffect(() => { 
+    api.get('/services').then(r => setServices(r.data.services)).catch(() => {}) 
+  }, [])
+
+  useEffect(() => {
+    if (location.state?.servicesRequested) {
+      setForm(f => ({
+        ...f,
+        servicesRequested: location.state.servicesRequested
+      }))
+      setServiceDetails(location.state.serviceDetails || {})
+    }
+  }, [location.state])
 
   const set = (k) => (e) => setForm(f => ({ ...f, [k]: e.target.value }))
 
@@ -27,9 +42,15 @@ export default function Contact() {
   const handleSubmit = async (e) => {
     e.preventDefault()
     if (!form.name || !form.phone || !form.email) return toast.error('Please fill in all required fields.')
+    
     setLoading(true)
     try {
-      await api.post('/enquiries', form)
+      const payload = {
+        ...form,
+        serviceDetails: Object.keys(serviceDetails).length > 0 ? serviceDetails : undefined
+      }
+      
+      await api.post('/enquiries', payload)
       setSubmitted(true)
       toast.success('Enquiry submitted! We will contact you within 4 hours.')
     } catch (err) {
@@ -54,6 +75,14 @@ export default function Contact() {
     </div>
   )
 
+  const SERVICE_ICONS = {
+    'Interior Design': '🏠',
+    'Electrical Work': '⚡',
+    'Solar Installation': '☀️',
+    'Signage & Billboard': '📋',
+    'Website & IT Setup': '💻'
+  }
+
   return (
     <div>
       <PublicNavbar />
@@ -66,6 +95,32 @@ export default function Contact() {
               <h1 className="text-4xl font-light text-gray-900 mb-2" style={{fontFamily:'Cormorant Garamond,serif'}}>Get a <em>free quote</em></h1>
               <p className="text-gray-500 mb-8 text-sm">Fill in your details and we'll call you within 4 business hours.</p>
 
+              {/* Show selected services from wizard */}
+              {form.servicesRequested.length > 0 && (
+                <div className="mb-6 p-4 bg-gold-50 border border-gold-200 rounded-lg">
+                  <p className="text-sm font-medium text-gray-900 mb-2">Selected Services:</p>
+                  <div className="space-y-2">
+                    {form.servicesRequested.map(serviceName => (
+                      <div key={serviceName}>
+                        <div className="flex items-center gap-2">
+                          <span className="text-lg">{SERVICE_ICONS[serviceName] || '🔧'}</span>
+                          <p className="text-sm font-medium text-gray-900">{serviceName}</p>
+                        </div>
+                        {serviceDetails[serviceName] && (
+                          <div className="mt-1 ml-6 text-xs text-gray-600 space-y-0.5">
+                            {Object.entries(serviceDetails[serviceName]).map(([key, val]) => (
+                              <div key={key}>
+                                <span className="font-medium capitalize">{key.replace(/([A-Z])/g, ' $1').trim()}:</span> {Array.isArray(val) ? val.join(', ') : String(val)}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div className="grid grid-cols-2 gap-3">
                   <div><label className="label">Full Name *</label><input className="input" required value={form.name} onChange={set('name')} placeholder="Your name" /></div>
@@ -73,19 +128,54 @@ export default function Contact() {
                 </div>
                 <div><label className="label">Email *</label><input className="input" type="email" required value={form.email} onChange={set('email')} placeholder="your@email.com" /></div>
                 <div><label className="label">Company / Project Name</label><input className="input" value={form.company} onChange={set('company')} placeholder="Your company name" /></div>
+                <div><label className="label">City / Location</label><input className="input" value={form.city} onChange={set('city')} placeholder="Your city" /></div>
 
                 <div>
-                  <label className="label">Services Needed</label>
-                  <div className="flex flex-wrap gap-2 mt-1">
-                    {services.map(s => (
-                      <button type="button" key={s.id} onClick={() => toggleService(s.name)}
-                        className={`px-3 py-1.5 text-xs border rounded transition-colors
-                          ${form.servicesRequested.includes(s.name) ? 'bg-gold-500 text-black border-gold-500' : 'border-gray-300 text-gray-600 hover:border-gray-400'}`}>
-                        {s.name}
-                      </button>
+                  <label className="label">How did you hear about us?</label>
+                  <select className="input" value={form.hearAboutUs} onChange={set('hearAboutUs')}>
+                    <option value="">Select...</option>
+                    <option value="Google Search">Google Search</option>
+                    <option value="Referral">Referral</option>
+                    <option value="Social Media">Social Media</option>
+                    <option value="Billboard">Billboard</option>
+                    <option value="Other">Other</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="label">Preferred callback time</label>
+                  <div className="space-y-2">
+                    {['Morning (9am-12pm)', 'Afternoon (12pm-4pm)', 'Evening (4pm-7pm)'].map(time => (
+                      <label key={time} className="flex items-center gap-3">
+                        <input
+                          type="radio"
+                          name="callbackTime"
+                          value={time}
+                          checked={form.callbackTime === time}
+                          onChange={set('callbackTime')}
+                          className="w-4 h-4"
+                        />
+                        <span className="text-sm text-gray-700">{time}</span>
+                      </label>
                     ))}
                   </div>
                 </div>
+
+                {/* Only show service selection if no services were pre-selected from wizard */}
+                {form.servicesRequested.length === 0 && (
+                  <div>
+                    <label className="label">Services Needed</label>
+                    <div className="flex flex-wrap gap-2 mt-1">
+                      {services.map(s => (
+                        <button type="button" key={s.id} onClick={() => toggleService(s.name)}
+                          className={`px-3 py-1.5 text-xs border rounded transition-colors
+                            ${form.servicesRequested.includes(s.name) ? 'bg-gold-500 text-black border-gold-500' : 'border-gray-300 text-gray-600 hover:border-gray-400'}`}>
+                          {s.name}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
 
                 <div>
                   <label className="label">Approximate Budget</label>

@@ -129,6 +129,18 @@ export default function AdminProjectDetail() {
     catch { toast.error('Failed.') }
   }
 
+  const deleteDocument = async (docId, docName) => {
+    const confirmed = window.confirm(`Are you sure you want to delete "${docName}"? This action cannot be undone.`)
+    if (!confirmed) return
+    try { 
+      await api.delete(`/documents/${docId}`); 
+      toast.success('Document deleted.'); 
+      load() 
+    } catch { 
+      toast.error('Failed to delete document.') 
+    }
+  }
+
   const subtotal = qItems.reduce((s,i) => s + (Number(i.total)||0), 0)
   const tax      = subtotal * (Number(qForm.taxPercent) / 100)
 
@@ -285,7 +297,7 @@ export default function AdminProjectDetail() {
                   await api.post(`/documents/project/${id}`, fd, { headers: { 'Content-Type': 'multipart/form-data' } })
                   toast.success('Document uploaded.')
                   load()
-                } catch { toast.error('Upload failed.') }
+                } catch (err) { toast.error(err.response?.data?.error || 'Upload failed.') }
               }} />
             </label>
           </div>
@@ -296,7 +308,10 @@ export default function AdminProjectDetail() {
                   <p className="text-sm font-medium text-gray-900">{d.name}</p>
                   <p className="text-xs text-gray-400 mt-0.5">{d.type} · {d.uploader?.name} · {formatDate(d.createdAt)}</p>
                 </div>
-                <a href={d.fileUrl} target="_blank" rel="noreferrer" className="text-xs text-gold-600 hover:underline flex-shrink-0">Download →</a>
+                <div className="flex gap-2 flex-shrink-0">
+                  <a href={d.fileUrl} target="_blank" rel="noreferrer" className="text-xs text-gold-600 hover:underline">Download →</a>
+                  <button onClick={() => deleteDocument(d.id, d.name)} className="text-xs text-red-600 hover:text-red-700 hover:underline">Delete</button>
+                </div>
               </div>
             ))}
             {project.documents?.length === 0 && <p className="text-sm text-gray-400">No documents yet.</p>}

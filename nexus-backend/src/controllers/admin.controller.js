@@ -21,7 +21,7 @@ const getDashboardStats = async (req, res, next) => {
       prisma.project.count({ where: { status: 'COMPLETED', updatedAt: { gte: monthStart } } }),
       prisma.project.findMany({
         take: 5, orderBy: { createdAt: 'desc' },
-        include: { client: { select: { name:true } }, manager: { select: { name:true } } }
+        include: { client: { select: { name:true } } }
       }),
       prisma.enquiry.findMany({ take: 5, orderBy: { createdAt: 'desc' } })
     ])
@@ -47,7 +47,9 @@ const getDashboardStats = async (req, res, next) => {
 const getAllUsers = async (req, res, next) => {
   try {
     const { role, page = 1, limit = 20 } = req.query
-    const where = role ? { role } : {}
+    // Only allow valid roles: SUPER_ADMIN, ADMIN, CLIENT
+    const validRoles = ['SUPER_ADMIN', 'ADMIN', 'CLIENT']
+    const where = role && validRoles.includes(role) ? { role } : {}
     const [users, total] = await Promise.all([
       prisma.user.findMany({
         where, orderBy: { createdAt: 'desc' },

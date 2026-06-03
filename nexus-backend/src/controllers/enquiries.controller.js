@@ -6,16 +6,28 @@ const emailSvc = require('../services/email.service')
 
 const submitEnquiry = async (req, res, next) => {
   try {
-    const { name, phone, email, company, servicesRequested, message, budget } = req.body
+    const { name, phone, email, company, servicesRequested, message, budget, city, hearAboutUs, callbackTime, serviceDetails } = req.body
     if (!name || !phone || !email) return res.status(400).json({ error: 'Name, phone, and email are required.' })
 
     const enquiry = await prisma.enquiry.create({
-      data: { name, phone, email, company, servicesRequested: servicesRequested || [], message, budget }
+      data: { 
+        name, 
+        phone, 
+        email, 
+        company, 
+        city,
+        hearAboutUs,
+        callbackTime,
+        servicesRequested: servicesRequested || [], 
+        message, 
+        budget,
+        serviceDetails: serviceDetails || null
+      }
     })
 
     // Send auto-reply to client and alert to admin (fire and forget)
     emailSvc.sendEnquiryConfirmation(email, name)
-    emailSvc.sendAdminEnquiryAlert({ name, phone, email, company, servicesRequested, message, budget })
+    emailSvc.sendAdminEnquiryAlert({ name, phone, email, company, servicesRequested, message, budget, city, hearAboutUs, callbackTime })
 
     res.status(201).json({ message: 'Enquiry submitted successfully. We will contact you within 4 hours.', enquiry })
   } catch (err) { next(err) }
@@ -64,7 +76,7 @@ const convertToProject = async (req, res, next) => {
     const enquiry = await prisma.enquiry.findUnique({ where: { id: req.params.id } })
     if (!enquiry) return res.status(404).json({ error: 'Enquiry not found.' })
 
-    const { managerId, title, location, startDate, expectedEndDate } = req.body
+    const { title, location, startDate, expectedEndDate } = req.body
 
     // Check if client account already exists
     let client = await prisma.user.findUnique({ where: { email: enquiry.email } })
@@ -93,19 +105,18 @@ const convertToProject = async (req, res, next) => {
     const project = await prisma.project.create({
       data: {
         clientId:  client.id,
-        managerId: managerId || null,
         title:     title || `${enquiry.name} — Project`,
         location,
         startDate:       startDate       ? new Date(startDate)       : null,
         expectedEndDate: expectedEndDate ? new Date(expectedEndDate) : null,
-        status:    'ENQUIRY',
+        status:    'NEW_ENQUIRY',
       }
     })
 
     // Mark enquiry as converted
     await prisma.enquiry.update({
       where: { id: enquiry.id },
-      data:  { status: 'CONVERTED', convertedProject: project.id }
+      data:  { status: 'CONTACTED', convertedProject: project.id }
     })
 
     res.json({ message: 'Enquiry converted to project.', project, client: { id: client.id, email: client.email } })

@@ -97,7 +97,6 @@ export default function ClientDashboard() {
               <thead className="bg-gray-50 border-b border-gray-200">
                 <tr>
                   <th className="table-header text-left px-4 py-3">Project</th>
-                  <th className="table-header text-left px-4 py-3 hidden sm:table-cell">PM</th>
                   <th className="table-header text-left px-4 py-3">Status</th>
                   <th className="table-header text-left px-4 py-3 hidden md:table-cell">Date</th>
                 </tr>
@@ -109,7 +108,6 @@ export default function ClientDashboard() {
                       <Link to={`/dashboard/projects/${p.id}`} className="text-sm font-medium text-gray-900 hover:text-gold-600">{p.title}</Link>
                       <p className="text-xs text-gray-400">{p.location || '—'}</p>
                     </td>
-                    <td className="px-4 py-3 hidden sm:table-cell text-sm text-gray-600">{p.manager?.name || '—'}</td>
                     <td className="px-4 py-3"><StatusBadge status={p.status} /></td>
                     <td className="px-4 py-3 hidden md:table-cell text-xs text-gray-500">{formatDate(p.createdAt)}</td>
                   </tr>

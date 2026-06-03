@@ -27,11 +27,11 @@ const sendMessage = async (req, res, next) => {
     // Notify the other party
     const project = await prisma.project.findUnique({
       where: { id: req.params.projectId },
-      include: { client: true, manager: true }
+      include: { client: true }
     })
     if (project) {
       const isClient  = req.user.role === 'CLIENT'
-      const recipient = isClient ? project.manager : project.client
+      const recipient = isClient ? null : project.client
       if (recipient?.email) {
         emailSvc.sendNewMessageNotification(recipient.email, recipient.name, req.user.name, project.title)
       }

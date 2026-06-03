@@ -14,18 +14,21 @@ datasource db {
 enum Role {
   SUPER_ADMIN
   ADMIN
-  PROJECT_MANAGER
   CLIENT
 }
 
 enum ProjectStatus {
-  ENQUIRY
+  NEW_ENQUIRY
+  CONTACTED
+  SITE_VISITED
   QUOTE_SENT
   CONFIRMED
+  ADVANCE_PAID
   IN_PROGRESS
+  QUALITY_CHECK
+  FINAL_INVOICE
   COMPLETED
-  ON_HOLD
-  CANCELLED
+  CLOSED
 }
 
 enum MilestoneStatus {
@@ -60,7 +63,14 @@ enum InvoiceStatus {
 enum EnquiryStatus {
   NEW
   CONTACTED
-  CONVERTED
+  SITE_VISITED
+  QUOTE_SENT
+  CONFIRMED
+  ADVANCE_PAID
+  IN_PROGRESS
+  QUALITY_CHECK
+  FINAL_INVOICE
+  COMPLETED
   CLOSED
 }
 
@@ -89,7 +99,6 @@ model User {
   updatedAt     DateTime  @updatedAt
 
   clientProjects    Project[]  @relation("ClientProjects")
-  managedProjects   Project[]  @relation("ManagerProjects")
   sentMessages      Message[]
   uploadedDocs      Document[]
   assignedEnquiries Enquiry[]
@@ -112,9 +121,8 @@ model Service {
 model Project {
   id              String        @id @default(uuid())
   clientId        String
-  managerId       String?
   title           String
-  status          ProjectStatus @default(ENQUIRY)
+  status          ProjectStatus @default(NEW_ENQUIRY)
   location        String?
   startDate       DateTime?
   expectedEndDate DateTime?
@@ -125,7 +133,6 @@ model Project {
   updatedAt       DateTime      @updatedAt
 
   client     User             @relation("ClientProjects",  fields: [clientId],   references: [id])
-  manager    User?            @relation("ManagerProjects", fields: [managerId],  references: [id])
   services   ProjectService[]
   milestones Milestone[]
   quotes     Quote[]
@@ -236,9 +243,13 @@ model Enquiry {
   phone             String
   email             String
   company           String?
+  city              String?
+  hearAboutUs       String?
+  callbackTime      String?
   servicesRequested String[]
   message           String?
   budget            String?
+  serviceDetails    Json?
   status            EnquiryStatus @default(NEW)
   assignedTo        String?
   convertedProject  String?

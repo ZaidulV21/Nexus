@@ -8,7 +8,7 @@ const { generateQuoteNumber, calculateGST } = require('../utils/helpers')
 const getAllQuotes = async (req, res, next) => {
   try {
     const { role, id } = req.user
-    const where = ['SUPER_ADMIN','ADMIN','PROJECT_MANAGER'].includes(role) ? {} : { project: { clientId: id } }
+    const where = ['SUPER_ADMIN','ADMIN'].includes(role) ? {} : { project: { clientId: id } }
     const quotes = await prisma.quote.findMany({
       where, orderBy: { createdAt: 'desc' },
       include: { project: { select: { id:true, title:true, client: { select: { id:true, name:true, email:true } } } } }
@@ -21,7 +21,7 @@ const getQuote = async (req, res, next) => {
   try {
     const quote = await prisma.quote.findUnique({
       where: { id: req.params.id },
-      include: { project: { include: { client: true, manager: { select:{id:true,name:true,email:true} } } } }
+      include: { project: { include: { client: true } } }
     })
     if (!quote) return res.status(404).json({ error: 'Quote not found.' })
     if (req.user.role === 'CLIENT' && quote.project.clientId !== req.user.id)

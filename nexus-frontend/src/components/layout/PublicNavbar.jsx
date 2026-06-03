@@ -10,7 +10,7 @@ export default function PublicNavbar() {
   const [open, setOpen] = useState(false)
 
   const dashLink = user
-    ? (['SUPER_ADMIN','ADMIN','PROJECT_MANAGER'].includes(user.role) ? '/admin' : '/dashboard')
+    ? (['SUPER_ADMIN','ADMIN'].includes(user.role) ? '/admin' : '/dashboard')
     : null
 
   return (

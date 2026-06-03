@@ -8,7 +8,7 @@ const { generateInvoiceNumber, calculateGST } = require('../utils/helpers')
 const getAllInvoices = async (req, res, next) => {
   try {
     const { role, id } = req.user
-    const where = ['SUPER_ADMIN','ADMIN','PROJECT_MANAGER'].includes(role) ? {} : { project: { clientId: id } }
+    const where = ['SUPER_ADMIN','ADMIN'].includes(role) ? {} : { project: { clientId: id } }
     const { status } = req.query
     if (status) where.status = status
     const invoices = await prisma.invoice.findMany({

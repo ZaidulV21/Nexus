@@ -8,7 +8,7 @@ import { Plus } from 'lucide-react'
 import api from '../../api/axios'
 import toast from 'react-hot-toast'
 
-const STATUSES = ['','ENQUIRY','QUOTE_SENT','CONFIRMED','IN_PROGRESS','COMPLETED','ON_HOLD','CANCELLED']
+const STATUSES = ['','NEW_ENQUIRY','CONTACTED','SITE_VISITED','QUOTE_SENT','CONFIRMED','ADVANCE_PAID','IN_PROGRESS','QUALITY_CHECK','FINAL_INVOICE','COMPLETED','CLOSED']
 
 export default function AdminProjects() {
   const [projects, setProjects] = useState([])
@@ -16,9 +16,8 @@ export default function AdminProjects() {
   const [filter,   setFilter]   = useState('')
   const [showNew,  setShowNew]  = useState(false)
   const [clients,  setClients]  = useState([])
-  const [managers, setManagers] = useState([])
   const [services, setServices] = useState([])
-  const [form, setForm] = useState({ clientId:'', managerId:'', title:'', location:'', startDate:'', expectedEndDate:'', totalValue:'', serviceIds:[] })
+  const [form, setForm] = useState({ clientId:'', title:'', location:'', startDate:'', expectedEndDate:'', totalValue:'', serviceIds:[] })
 
   const load = () => {
     const params = filter ? `?status=${filter}` : ''
@@ -33,11 +32,9 @@ export default function AdminProjects() {
   useEffect(() => {
     Promise.all([
       api.get('/admin/users?role=CLIENT'),
-      api.get('/admin/users?role=PROJECT_MANAGER'),
       api.get('/services'),
-    ]).then(([c, m, s]) => {
+    ]).then(([c, s]) => {
       setClients(c.data.users)
-      setManagers(m.data.users)
       setServices(s.data.services)
     }).catch(() => {})
   }, [])
@@ -57,7 +54,7 @@ export default function AdminProjects() {
       await api.post('/projects', form)
       toast.success('Project created!')
       setShowNew(false)
-      setForm({ clientId:'', managerId:'', title:'', location:'', startDate:'', expectedEndDate:'', totalValue:'', serviceIds:[] })
+      setForm({ clientId:'', title:'', location:'', startDate:'', expectedEndDate:'', totalValue:'', serviceIds:[] })
       load()
     } catch (err) { toast.error(err.response?.data?.error || 'Failed to create project.') }
   }
@@ -138,13 +135,6 @@ export default function AdminProjects() {
             <select className="input" value={form.clientId} onChange={set('clientId')}>
               <option value="">Select client</option>
               {clients.map(c => <option key={c.id} value={c.id}>{c.name} {c.companyName ? `(${c.companyName})` : ''}</option>)}
-            </select>
-          </div>
-          <div>
-            <label className="label">Project Manager</label>
-            <select className="input" value={form.managerId} onChange={set('managerId')}>
-              <option value="">Assign later</option>
-              {managers.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
             </select>
           </div>
           <div className="col-span-2">

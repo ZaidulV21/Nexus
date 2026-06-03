@@ -79,23 +79,6 @@ async function main() {
   }
   console.log('✅ 5 services created.')
 
-  // ── Sample Project Manager ───────────────────────────────
-  const pmPassword = await bcrypt.hash('Manager@2025!', 12)
-  const pm = await prisma.user.upsert({
-    where:  { email: 'pm@nexusmanaged.in' },
-    update: {},
-    create: {
-      name:         'Rahul Verma',
-      email:        'pm@nexusmanaged.in',
-      passwordHash: pmPassword,
-      role:         'PROJECT_MANAGER',
-      isVerified:   true,
-      phone:        '+91 98765 43211',
-      companyName:  'Nexus Managed Services',
-    }
-  })
-  console.log('✅ Sample PM created:', pm.email)
-
   // ── Sample Client ────────────────────────────────────────
   const clientPassword = await bcrypt.hash('Client@2025!', 12)
   const client = await prisma.user.upsert({
@@ -118,7 +101,6 @@ async function main() {
   console.log('')
   console.log('  Login credentials:')
   console.log(`  Admin   → ${process.env.ADMIN_EMAIL || 'admin@nexusmanaged.in'} / ${process.env.ADMIN_PASSWORD || 'Admin@Nexus2025!'}`)
-  console.log('  PM      → pm@nexusmanaged.in / Manager@2025!')
   console.log('  Client  → client@test.com / Client@2025!')
 }
 
