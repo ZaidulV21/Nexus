@@ -9,15 +9,46 @@ const transporter = nodemailer.createTransport({
   auth:   { user: 'apikey', pass: process.env.SENDGRID_API_KEY }
 })
 
+const getFromAddress = () => {
+  const address = process.env.SENDGRID_FROM_EMAIL || process.env.EMAIL_FROM || 'hello@nexusmanaged.in'
+  const name = process.env.EMAIL_FROM_NAME || 'Nexus Managed Services'
+  return `"${name}" <${address}>`
+}
+
 const sendEmail = async ({ to, subject, html }) => {
+  const fromAddress = process.env.SENDGRID_FROM_EMAIL || process.env.EMAIL_FROM || 'hello@nexusmanaged.in'
+  if (!process.env.SENDGRID_API_KEY) {
+    const msg = 'Email failed: SENDGRID_API_KEY is not set.'
+    console.error('❌', msg)
+    throw new Error(msg)
+  }
+
+  if (!process.env.EMAIL_FROM) {
+    console.warn('⚠️ EMAIL_FROM is not configured in .env. Using default hello@nexusmanaged.in. Verify this sender in SendGrid.')
+  }
+
+  if (fromAddress === 'no-reply@nexusmanaged.in') {
+    console.warn('⚠️ Using default SendGrid from address no-reply@nexusmanaged.in. This address must be verified in your SendGrid sender identities or authenticated domain.')
+  }
+
   try {
+    console.log(`📧 Sending email → ${to}: ${subject}`)
+    console.log(`   From: ${getFromAddress()}`)
+    
     await transporter.sendMail({
-      from: `"${process.env.EMAIL_FROM_NAME}" <${process.env.EMAIL_FROM}>`,
-      to, subject, html
+      from: getFromAddress(),
+      to,
+      subject,
+      html,
     })
-    console.log(`📧 Email sent → ${to}: ${subject}`)
+    console.log(`✅ Email sent → ${to}: ${subject}`)
   } catch (err) {
-    console.error('❌ Email failed:', err.message)
+    const errorMsg = err.response?.body || err.message || JSON.stringify(err)
+    console.error('❌ Email failed:', errorMsg)
+    console.error('   Status:', err.response?.status)
+    console.error('   To:', to)
+    console.error('   From:', getFromAddress())
+    throw err
   }
 }
 

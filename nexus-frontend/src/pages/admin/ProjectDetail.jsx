@@ -9,7 +9,7 @@ import api from '../../api/axios'
 import toast from 'react-hot-toast'
 
 const TABS    = ['Overview','Services','Timeline','Documents','Messages','Quotes','Invoices']
-const PROJECT_STATUSES = ['ENQUIRY','QUOTE_SENT','CONFIRMED','IN_PROGRESS','COMPLETED','ON_HOLD','CANCELLED']
+const PROJECT_STATUSES = ['NEW_ENQUIRY','CONTACTED','SITE_VISITED','QUOTE_SENT','CONFIRMED','ADVANCE_PAID','IN_PROGRESS','QUALITY_CHECK','FINAL_INVOICE','COMPLETED','CLOSED']
 
 export default function AdminProjectDetail() {
   const { id }   = useParams()

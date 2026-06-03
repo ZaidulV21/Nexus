@@ -134,6 +134,9 @@ EMAIL_FROM_NAME=Nexus Managed Services
 FRONTEND_URL=http://localhost:5173
 ADMIN_NAME=Nexus Admin
 ADMIN_EMAIL=admin@nexusmanaged.in
+```
+
+> Note: SendGrid requires the `EMAIL_FROM` address to be a verified sender identity or use a domain authenticated in your SendGrid account. If you get a 550 error, verify the sender email or domain in SendGrid.
 ADMIN_PASSWORD=Admin@Nexus2025!
 ```
 

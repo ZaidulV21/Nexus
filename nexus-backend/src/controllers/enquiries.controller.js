@@ -71,19 +71,98 @@ const updateEnquiry = async (req, res, next) => {
   } catch (err) { next(err) }
 }
 
+const buildServiceNotes = (serviceName, detail) => {
+  if (!detail || typeof detail !== 'object') return null
+  const lines = [`Service: ${serviceName}`]
+  Object.entries(detail).forEach(([key, value]) => {
+    const rendered = Array.isArray(value) ? value.join(', ') : String(value)
+    lines.push(`  ${key.replace(/([A-Z])/g, ' $1').trim()}: ${rendered}`)
+  })
+  return lines.join('\n')
+}
+
+const buildProjectNotes = (enquiry) => {
+  const sections = ['Client Enquiry Summary']
+
+  if (Array.isArray(enquiry.servicesRequested) && enquiry.servicesRequested.length > 0) {
+    enquiry.servicesRequested.forEach(service => {
+      sections.push(`Service: ${service}`)
+      const detail = enquiry.serviceDetails?.[service] || enquiry.serviceDetails?.[service.toLowerCase()]
+      if (detail && typeof detail === 'object') {
+        Object.entries(detail).forEach(([key, value]) => {
+          const rendered = Array.isArray(value) ? value.join(', ') : String(value)
+          sections.push(`  ${key.replace(/([A-Z])/g, ' $1').trim()}: ${rendered}`)
+        })
+      }
+    })
+  }
+
+  if (enquiry.budget) {
+    sections.push(`Budget: ${enquiry.budget}`)
+  }
+
+  if (enquiry.callbackTime) {
+    sections.push(`Preferred Callback: ${enquiry.callbackTime}`)
+  }
+
+  if (enquiry.hearAboutUs) {
+    sections.push(`How They Heard About Us: ${enquiry.hearAboutUs}`)
+  }
+
+  if (enquiry.message) {
+    sections.push('Original Message:')
+    sections.push(enquiry.message)
+  }
+
+  if (sections.length <= 1) return null
+  return sections.join('\n\n')
+}
+
+const parseBudgetValue = (budget) => {
+  if (!budget) return null
+  const normalized = String(budget).trim()
+  const parsed = parseFloat(normalized.replace(/[^0-9.]/g, ''))
+  return Number.isFinite(parsed) ? parsed : null
+}
+
 const convertToProject = async (req, res, next) => {
   try {
     const enquiry = await prisma.enquiry.findUnique({ where: { id: req.params.id } })
     if (!enquiry) return res.status(404).json({ error: 'Enquiry not found.' })
 
     const { title, location, startDate, expectedEndDate } = req.body
+    const projectLocation = location || enquiry.city || null
+    const projectNotes    = buildProjectNotes(enquiry)
+    const projectValue    = parseBudgetValue(enquiry.budget)
 
-    // Check if client account already exists
+    const serviceNames = Array.isArray(enquiry.servicesRequested)
+      ? enquiry.servicesRequested.map(s => String(s).trim()).filter(Boolean)
+      : []
+
+    const matchingServices = serviceNames.length > 0
+      ? await prisma.service.findMany({
+          where: {
+            OR: serviceNames.map(name => ({ name: { equals: name, mode: 'insensitive' } }))
+          }
+        })
+      : []
+
+    const serviceMap = matchingServices.reduce((acc, service) => {
+      acc[service.name.toLowerCase()] = service
+      return acc
+    }, {})
+
+    const serviceCreates = serviceNames.map((serviceName) => {
+      const found = serviceMap[serviceName.toLowerCase()]
+      const detail = enquiry.serviceDetails?.[serviceName] || enquiry.serviceDetails?.[serviceName.toLowerCase()]
+      const notes = detail ? buildServiceNotes(serviceName, detail) : null
+      return found ? { serviceId: found.id, notes: notes || undefined } : null
+    }).filter(Boolean)
+
     let client = await prisma.user.findUnique({ where: { email: enquiry.email } })
     let tempPassword = null
 
     if (!client) {
-      // Create client account
       tempPassword  = `Nexus@${Math.random().toString(36).slice(2, 8).toUpperCase()}`
       const passwordHash = await bcrypt.hash(tempPassword, 12)
       client = await prisma.user.create({
@@ -97,27 +176,51 @@ const convertToProject = async (req, res, next) => {
           isVerified:  true,
         }
       })
-      // Email login credentials to new client
-      emailSvc.sendClientCredentials(enquiry.email, enquiry.name, tempPassword)
     }
 
-    // Create project
     const project = await prisma.project.create({
       data: {
-        clientId:  client.id,
-        title:     title || `${enquiry.name} — Project`,
-        location,
+        clientId:        client.id,
+        title:           title || `${enquiry.name} — Project`,
+        location:        projectLocation,
         startDate:       startDate       ? new Date(startDate)       : null,
         expectedEndDate: expectedEndDate ? new Date(expectedEndDate) : null,
-        status:    'NEW_ENQUIRY',
+        totalValue:      projectValue,
+        notes:           projectNotes,
+        status:          'NEW_ENQUIRY'
       }
     })
 
-    // Mark enquiry as converted
+    // After creating project, add services from enquiry
+    if (Array.isArray(enquiry.servicesRequested) && enquiry.servicesRequested.length > 0) {
+      const serviceRecords = await prisma.service.findMany({
+        where: { name: { in: enquiry.servicesRequested } }
+      })
+      if (serviceRecords.length > 0) {
+        await prisma.projectService.createMany({
+          data: serviceRecords.map(svc => ({
+            projectId: project.id,
+            serviceId: svc.id,
+            status: 'PENDING'
+          }))
+        })
+      }
+    }
+
     await prisma.enquiry.update({
       where: { id: enquiry.id },
-      data:  { status: 'CONTACTED', convertedProject: project.id }
+      data:  { status: 'CONVERTED', convertedProject: project.id }
     })
+
+    if (tempPassword) {
+      // Send email and await it to catch any SendGrid errors
+      try {
+        await emailSvc.sendClientCredentials(enquiry.email, enquiry.name, tempPassword)
+      } catch (emailErr) {
+        console.error('⚠️ Email sending failed after project creation:', emailErr.message)
+        // Don't fail the conversion, just log the error
+      }
+    }
 
     res.json({ message: 'Enquiry converted to project.', project, client: { id: client.id, email: client.email } })
   } catch (err) { next(err) }

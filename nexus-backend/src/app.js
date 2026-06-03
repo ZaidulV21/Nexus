@@ -22,15 +22,16 @@ sgMail.setApiKey(process.env.SENDGRID_API_KEY);
 // ==============================
 app.use(helmet());
 
+const normalizeOrigin = (url) => typeof url === 'string' ? url.replace(/\/$/, '') : url;
 const allowedOrigins = [
   "http://localhost:5173",
-  process.env.FRONTEND_URL
+  normalizeOrigin(process.env.FRONTEND_URL)
 ].filter(Boolean);
 
 app.use(
   cors({
     origin: function (origin, callback) {
-      if (!origin || allowedOrigins.includes(origin)) {
+      if (!origin || allowedOrigins.includes(normalizeOrigin(origin))) {
         callback(null, true);
       } else {
         callback(new Error("Not allowed by CORS"));
@@ -101,9 +102,10 @@ app.post("/api/send-email", async (req, res) => {
   try {
     const { name, email, message } = req.body;
 
+    const fromAddress = process.env.SENDGRID_FROM_EMAIL || process.env.EMAIL_FROM || 'hello@nexusmanaged.in'
     const msg = {
       to: "yourgmail@gmail.com", // CHANGE THIS
-      from: process.env.EMAIL_FROM,
+      from: fromAddress,
       subject: `New Contact Form Message from ${name}`,
 
       text: `

@@ -15,6 +15,7 @@ datasource db {
 enum Role {
   SUPER_ADMIN
   ADMIN
+  PROJECT_MANAGER
   CLIENT
 }
 
@@ -63,6 +64,7 @@ enum InvoiceStatus {
 
 enum EnquiryStatus {
   NEW
+  CONVERTED
   CONTACTED
   SITE_VISITED
   QUOTE_SENT
@@ -100,6 +102,7 @@ model User {
   updatedAt     DateTime  @updatedAt
 
   clientProjects    Project[]  @relation("ClientProjects")
+  managedProjects   Project[]  @relation("ProjectManager")
   sentMessages      Message[]
   uploadedDocs      Document[]
   assignedEnquiries Enquiry[]
@@ -122,6 +125,7 @@ model Service {
 model Project {
   id              String        @id @default(uuid())
   clientId        String
+  managerId       String?
   title           String
   status          ProjectStatus @default(NEW_ENQUIRY)
   location        String?
@@ -134,6 +138,7 @@ model Project {
   updatedAt       DateTime      @updatedAt
 
   client     User             @relation("ClientProjects",  fields: [clientId],   references: [id])
+  manager    User?            @relation("ProjectManager", fields: [managerId], references: [id])
   services   ProjectService[]
   milestones Milestone[]
   quotes     Quote[]

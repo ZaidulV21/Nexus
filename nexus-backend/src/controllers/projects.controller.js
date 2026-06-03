@@ -4,6 +4,7 @@ const prisma = new PrismaClient()
 
 const projectIncludes = {
   client:  { select: { id:true, name:true, email:true, phone:true, companyName:true, avatarUrl:true } },
+  manager: { select: { id:true, name:true, email:true } },
   services:  { include: { service: true }, orderBy: { createdAt: 'asc' } },
   milestones:{ orderBy: { sortOrder: 'asc' } },
   quotes:    { orderBy: { createdAt: 'desc' } },
@@ -25,6 +26,7 @@ const getAllProjects = async (req, res, next) => {
         where,
         include: {
           client:  { select: { id:true, name:true, companyName:true } },
+          manager: { select: { id:true, name:true, email:true } },
           _count:  { select: { milestones:true, messages:true, documents:true } }
         },
         orderBy: { createdAt: 'desc' },
@@ -48,18 +50,38 @@ const getProject = async (req, res, next) => {
 
 const createProject = async (req, res, next) => {
   try {
-    const { clientId, title, location, startDate, expectedEndDate, totalValue, notes, serviceIds } = req.body
-    if (!clientId || !title) return res.status(400).json({ error: 'clientId and title are required.' })
+    const { clientId, managerId, title, location, startDate, expectedEndDate, totalValue, notes, serviceIds } = req.body
 
+    // Validate
+    if (!clientId) return res.status(400).json({ error: 'clientId is required' })
+    if (!title || !title.trim()) return res.status(400).json({ error: 'Project title is required' })
+
+    // Verify client exists
+    const client = await prisma.user.findUnique({ where: { id: clientId } })
+    if (!client) return res.status(404).json({ error: 'Client not found' })
+
+    // Build services create payload if provided
+    const servicesCreate = serviceIds?.length ? serviceIds.map(sid => ({ serviceId: sid })) : undefined
+
+    // Create project with optional services
     const project = await prisma.project.create({
       data: {
-        clientId, title, location, notes,
-        totalValue:      totalValue      ? parseFloat(totalValue)      : null,
-        startDate:       startDate       ? new Date(startDate)       : null,
+        clientId,
+        managerId: managerId || null,
+        title: title.trim(),
+        location: location?.trim() || null,
+        notes: notes?.trim() || null,
+        totalValue: totalValue ? parseFloat(totalValue) : null,
+        startDate: startDate ? new Date(startDate) : null,
         expectedEndDate: expectedEndDate ? new Date(expectedEndDate) : null,
-        services: serviceIds?.length ? { create: serviceIds.map(sid => ({ serviceId: sid })) } : undefined
+        status: 'NEW_ENQUIRY',
+        services: servicesCreate ? { create: servicesCreate } : undefined
       },
-      include: projectIncludes
+      include: {
+        client: { select: { id: true, name: true, email: true, companyName: true } },
+        manager: { select: { id: true, name: true } },
+        services: { include: { service: true } }
+      }
     })
     res.status(201).json({ project })
   } catch (err) { next(err) }
@@ -67,7 +89,7 @@ const createProject = async (req, res, next) => {
 
 const updateProject = async (req, res, next) => {
   try {
-    const { status, location, startDate, expectedEndDate, actualEndDate, totalValue, notes } = req.body
+    const { status, location, startDate, expectedEndDate, actualEndDate, totalValue, notes, managerId } = req.body
     const project = await prisma.project.update({
       where: { id: req.params.id },
       data: {
@@ -78,8 +100,9 @@ const updateProject = async (req, res, next) => {
         ...(startDate       !== undefined && { startDate:       new Date(startDate) }),
         ...(expectedEndDate !== undefined && { expectedEndDate: new Date(expectedEndDate) }),
         ...(actualEndDate   !== undefined && { actualEndDate:   new Date(actualEndDate) }),
+        ...(managerId       !== undefined && { managerId: managerId || null }),
       },
-      include: { client: { select:{id:true,name:true,email:true} } }
+      include: { client: { select:{id:true,name:true,email:true} }, manager: { select:{id:true,name:true,email:true} } }
     })
     res.json({ project })
   } catch (err) { next(err) }

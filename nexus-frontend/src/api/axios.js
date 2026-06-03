@@ -1,8 +1,13 @@
 // src/api/axios.js
 import axios from 'axios'
 
+const apiBaseURL = import.meta.env.VITE_API_URL || 'https://nexus-es75.onrender.com'
+if (!import.meta.env.VITE_API_URL) {
+  console.warn('VITE_API_URL is not set. Falling back to hard-coded API host:', apiBaseURL)
+}
+
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || 'https://nexus-es75.onrender.com',
+  baseURL: apiBaseURL,
   headers: { 'Content-Type': 'application/json' },
 })
 

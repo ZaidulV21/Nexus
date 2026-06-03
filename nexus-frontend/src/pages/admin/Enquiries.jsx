@@ -5,8 +5,9 @@ import { StatusBadge, PageLoader, EmptyState, Modal } from '../../components/ui'
 import { formatDate, formatDateTime } from '../../utils/helpers'
 import api from '../../api/axios'
 import toast from 'react-hot-toast'
+import { useNavigate } from 'react-router-dom'
 
-const STATUSES = ['', 'NEW', 'CONTACTED', 'SITE_VISITED', 'QUOTE_SENT', 'CONFIRMED', 'ADVANCE_PAID', 'IN_PROGRESS', 'QUALITY_CHECK', 'FINAL_INVOICE', 'COMPLETED', 'CLOSED']
+const STATUSES = ['', 'NEW', 'CONVERTED', 'CONTACTED', 'SITE_VISITED', 'QUOTE_SENT', 'CONFIRMED', 'ADVANCE_PAID', 'IN_PROGRESS', 'QUALITY_CHECK', 'FINAL_INVOICE', 'COMPLETED', 'CLOSED']
 
 export default function AdminEnquiries() {
   const [enquiries, setEnquiries] = useState([])
@@ -15,6 +16,8 @@ export default function AdminEnquiries() {
   const [convert,   setConvert]   = useState(null)   // enquiry to convert
   const [details,   setDetails]   = useState(null)   // enquiry details view
   const [form,      setForm]      = useState({ title:'', location:'' })
+  const [convertingId, setConvertingId] = useState(null)
+  const navigate = useNavigate()
 
   const load = () => {
     const params = filter ? `?status=${filter}` : ''
@@ -36,16 +39,20 @@ export default function AdminEnquiries() {
 
   const handleConvert = async () => {
     if (!convert) return
+    setConvertingId(convert.id)
     try {
-      await api.post(`/enquiries/${convert.id}/convert`, {
+      const { data } = await api.post(`/enquiries/${convert.id}/convert`, {
         title:     form.title || `${convert.name} — Project`,
         location:  form.location,
       })
       toast.success('Enquiry converted to project. Client credentials sent by email.')
       setConvert(null)
       setForm({ title:'', location:'' })
-      load()
+      // Redirect to newly created project for immediate review
+      if (data?.project?.id) navigate(`/admin/projects/${data.project.id}`)
+      else load()
     } catch (err) { toast.error(err.response?.data?.error || 'Conversion failed.') }
+    finally { setConvertingId(null) }
   }
 
   if (loading) return <AdminLayout><PageLoader /></AdminLayout>
@@ -117,8 +124,9 @@ export default function AdminEnquiries() {
                         {e.status !== 'CONTACTED' && (
                           <button
                             onClick={() => { setConvert(e); setForm({ title:`${e.name} — Project`, location:'' }) }}
-                            className="text-xs bg-gold-500 text-black px-2.5 py-1 hover:bg-gold-600 transition-colors whitespace-nowrap">
-                            Convert →
+                            disabled={convertingId === e.id}
+                            className={`text-xs bg-gold-500 text-black px-2.5 py-1 hover:bg-gold-600 transition-colors whitespace-nowrap ${convertingId===e.id? 'opacity-60 cursor-not-allowed':''}`}>
+                            {convertingId === e.id ? 'Converting…' : 'Convert →'}
                           </button>
                         )}
                         {e.message && (
@@ -159,7 +167,7 @@ export default function AdminEnquiries() {
         </div>
         <div className="flex gap-3 justify-end mt-6">
           <button onClick={() => setConvert(null)} className="btn-outline">Cancel</button>
-          <button onClick={handleConvert} className="btn-primary">Convert to Project</button>
+          <button onClick={handleConvert} disabled={convertingId === convert?.id} className="btn-primary">{convertingId === convert?.id ? 'Converting…' : 'Convert to Project'}</button>
         </div>
       </Modal>
       

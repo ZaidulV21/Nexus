@@ -47,8 +47,8 @@ const getDashboardStats = async (req, res, next) => {
 const getAllUsers = async (req, res, next) => {
   try {
     const { role, page = 1, limit = 20 } = req.query
-    // Only allow valid roles: SUPER_ADMIN, ADMIN, CLIENT
-    const validRoles = ['SUPER_ADMIN', 'ADMIN', 'CLIENT']
+    // Only allow valid roles: SUPER_ADMIN, ADMIN, PROJECT_MANAGER, CLIENT
+    const validRoles = ['SUPER_ADMIN', 'ADMIN', 'PROJECT_MANAGER', 'CLIENT']
     const where = role && validRoles.includes(role) ? { role } : {}
     const [users, total] = await Promise.all([
       prisma.user.findMany({
